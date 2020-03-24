@@ -5,8 +5,8 @@ using UnityEngine.Networking;
 
 public class MultiPlayer : MonoBehaviour
 {
-    //public string ServerUrl = "https://safe-falls-95007.herokuapp.com/";
-    private string ServerUrl = "http://localhost:5000/";
+    private string ServerUrl = "https://safe-falls-95007.herokuapp.com/";
+    //private string ServerUrl = "http://localhost:5000/";
 
     public bool ConnectionOk = false;
 
