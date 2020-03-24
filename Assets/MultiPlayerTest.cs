@@ -30,7 +30,7 @@ public class MultiPlayerTest : MonoBehaviour
                     }
                     else
                     {
-                        MultiPlayer.Match(MultiPlayer.UserId, (err3, res) =>
+                        MultiPlayer.Match((err3, res) =>
                         {
                             if (!err3)
                             {

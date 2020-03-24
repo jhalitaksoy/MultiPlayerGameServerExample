@@ -5,7 +5,8 @@ using UnityEngine.Networking;
 
 public class MultiPlayer : MonoBehaviour
 {
-    public string ServerUrl = "https://safe-falls-95007.herokuapp.com/";
+    //public string ServerUrl = "https://safe-falls-95007.herokuapp.com/";
+    private string ServerUrl = "http://localhost:5000/";
 
     public bool ConnectionOk = false;
 
@@ -26,7 +27,7 @@ public class MultiPlayer : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        
+
     }
 
     // Update is called once per frame
@@ -47,7 +48,7 @@ public class MultiPlayer : MonoBehaviour
     {
         if (CheckIsMatched)
         {
-            IsMatched(UserId, (err, res) => 
+            IsMatched((err, res) => 
             { 
                 if(err && res)
                 {
@@ -88,17 +89,18 @@ public class MultiPlayer : MonoBehaviour
                 else
                 {
                     LoginOk = true;
+                    UserId = data;
                     onOperationResult(true, data);
                 }
             }));
         }
     }
 
-    public void Match(string userID, OnOperationResult<bool> onOperationResult)
+    public void Match(OnOperationResult<bool> onOperationResult)
     {
         if (LoginOk)
         {
-            StartCoroutine(SendHttpRequest($"match?id={userID}", (err, data) =>
+            StartCoroutine(SendHttpRequest($"match?id={UserId}", (err, data) =>
             {
                 if (err)
                 {
@@ -113,11 +115,11 @@ public class MultiPlayer : MonoBehaviour
         }
     }
 
-    public void IsMatched(string userID, OnOperationResult<bool> onOperationResult)
+    public void IsMatched(OnOperationResult<bool> onOperationResult)
     {
         if (CheckIsMatched)
         {
-            StartCoroutine(SendHttpRequest($"isMatched?id={userID}", (err, data) =>
+            StartCoroutine(SendHttpRequest($"isMatched?id={UserId}", (err, data) =>
             {
                 if (err)
                 {
