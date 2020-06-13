@@ -1,0 +1,4 @@
+﻿[*.cs]
+
+# IDE0008: Açık tür kullanma
+csharp_style_var_elsewhere = true:silent

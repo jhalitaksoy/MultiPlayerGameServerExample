@@ -5,40 +5,140 @@ using UnityEngine.Networking;
 
 public class MultiPlayer : MonoBehaviour
 {
-    private string ServerUrl = "https://safe-falls-95007.herokuapp.com/";
-    //private string ServerUrl = "http://localhost:5000/";
+    #region Private Fields
 
-    public bool ConnectionOk = false;
+    private bool IsLogin = false;
 
-    public bool LoginOk = false;
+    private string PlayerID = null;
 
-    public bool CheckIsMatched = false;
+    private Timer Timer;
 
-    public bool Matched = false;
+    private NetworkManager NetworkManager;
 
-    public string UserId = null;
+    private MessageManager MessageManager;
 
-    public event OnUsersMatched OnUsersMatched;
+    #endregion
 
-    public float tickTime = 1.0f; //1 second
+    #region Events
 
-    public float sumDelta = 0;
+    /// <summary>
+    /// Finded a rival and game start
+    /// </summary>
+    public event On OnGameStart;
+
+    /// <summary>
+    /// You can use this for anything 
+    /// </summary>
+    public event On<string> OnSpecialMessage;
+
+    /// <summary>
+    /// Chat messaging
+    /// </summary>
+    public event On<string> OnChatMessage;
+
+    /// <summary>
+    /// if rival has a network problem or leave the game
+    /// </summary>
+    public event On OnRivalLeave;
+
+    /// <summary>
+    /// Rival won
+    /// </summary>
+    public event On OnRivalWon;
+
+    /// <summary>
+    /// if rival want to play again 
+    /// </summary>
+    public event On OnRivalWantPlayAgain;
+
+    /// <summary>
+    /// On Game ended
+    /// </summary>
+    public event On OnGameEnded;
+
+    #endregion
+
+    #region Public Methods
+
+    /// <summary>
+    /// Start game
+    /// </summary>
+    public void StartGame()
+    {
+        Logger.i("StartGame()");
+        Match((success) => { });
+    }
+
+    /// <summary>
+    /// if you want to send a special message to rival
+    /// Listen 
+    /// </summary>
+    /// <param name="message"></param>
+    public void SendSpecialMessage(string message)
+    {
+        MessageManager.SendMessage(MessageManager.SPECIAL, message);
+    }
+
+    /// <summary>
+    /// if player send a chat message to rival
+    /// </summary>
+    /// <param name="message"></param>
+    public void SendChatMessage(string message)
+    {
+        MessageManager.SendMessage(MessageManager.CHAT, message);
+    }
+
+    /// <summary>
+    /// You must call in the game end and if player want to play against to current rival.
+    /// </summary>
+    public void SendPlayAgain()
+    {
+        MessageManager.SendMessage(MessageManager.GAME_CONROL, MessageManager.RIVALPLAYAGAIN);
+    }
+
+    /// <summary>
+    /// You must call this method when this player win.
+    /// See OnRivalWon
+    /// </summary>
+    public void PlayerWon()
+    {
+        MessageManager.SendMessage(MessageManager.GAME_CONROL, MessageManager.RIVAL_WON);
+    }
+
+
+    /// <summary>
+    /// Reset
+    /// </summary>
+    public void Reset()
+    {
+        IsLogin = false;
+        PlayerID = null;
+    }
+
+
+    #endregion
+
+    #region Private Methods
+
 
     // Start is called before the first frame update
     void Start()
     {
+        Timer = new Timer(1.0f, Tick);
+        Timer.Start();
 
+        NetworkManager = new NetworkManager();
+
+        MessageManager = new MessageManager(this, NetworkManager, PlayerID);
     }
 
     // Update is called once per frame
     void Update()
     {
-        sumDelta += Time.deltaTime;
-        if(sumDelta >= tickTime)
-        {
-            sumDelta = 0;
-            Tick();
-        }
+        //Logger.i("update");
+        Timer.Update();
+
+        NetworkManager.Update();
     }
 
     /// <summary>
@@ -46,134 +146,129 @@ public class MultiPlayer : MonoBehaviour
     /// </summary>
     void Tick()
     {
-        if (CheckIsMatched)
+        if (IsLogin && NetworkManager.Emty)
         {
-            IsMatched((err, res) => 
-            { 
-                if(err && res)
-                {
-                    Matched = true;
-                    CheckIsMatched = false;
-                    OnUsersMatched?.Invoke();
-                }
-            });
+            GetMessages();
         }
     }
 
-    public void CheckConnection(OnOperationResult<int> onOperationResult)
+    /// <summary>
+    /// Match a rival and start game
+    /// </summary>
+    private void Match(Callback<bool> callback)
     {
-        StartCoroutine(SendHttpRequest("", (err, data) =>
+        var request = CreateMatchRequest(callback);
+
+        NetworkManager.AddNetworkOperation(request);
+    }
+
+    /// <summary>
+    /// Create Match Post Operation
+    /// </summary>
+    /// <param name="callback"></param>
+    /// <returns></returns>
+    private PostOpeation CreateMatchRequest(Callback<bool> callback)
+    {
+        return new PostOpeation("match", "", (data) =>
         {
-            if(data == "ok")
+            if (data == null)
             {
-                ConnectionOk = true;
-                onOperationResult(true, 0);
+                callback(false);
             }
             else
             {
-                onOperationResult(false, 0);
+                callback(true);
+                PlayerID = data;
+                MessageManager.PlayerID = PlayerID;
+                IsLogin = true;
             }
-        }));
+        }, this);
     }
 
-    public void Login(OnOperationResult<string> onOperationResult)
+    /// <summary>
+    /// Check has a new message
+    /// </summary>
+    private void GetMessages()
     {
-        if (ConnectionOk)
+        var request = CreateGetMessagesRequest();
+
+        NetworkManager.AddNetworkOperation(request);
+    }
+
+    /// <summary>
+    /// Create GetMessage Request
+    /// </summary>
+    /// <returns></returns>
+    private PutOpeation CreateGetMessagesRequest()
+    {
+        var getMessagesData = new GetMessagePostData()
         {
-            StartCoroutine(SendHttpRequest("login", (err, data) =>
+            playerId = PlayerID,
+            localMessageCount = MessageManager.InBox.Count,
+        };
+
+        var json = JsonUtility.ToJson(getMessagesData);
+
+        return new PutOpeation("getMessages", json, (data) =>
+        {
+            if (data == null)
             {
-                if (err)
-                {
-                    onOperationResult(false, null);
-                }
-                else
-                {
-                    LoginOk = true;
-                    UserId = data;
-                    onOperationResult(true, data);
-                }
-            }));
-        }
-    }
-
-    public void Match(OnOperationResult<bool> onOperationResult)
-    {
-        if (LoginOk)
-        {
-            StartCoroutine(SendHttpRequest($"match?id={UserId}", (err, data) =>
+                Logger.e("An error occurs while getting messages!");
+                //callback(false);
+            }
+            else
             {
-                if (err)
-                {
-                    onOperationResult(false, false);
-                }
-                else
-                {
-                    CheckIsMatched = true;
-                    onOperationResult(true, false);
-                }
-            }));
-        }
+                //callback(true);
+                Logger.i("GetMessage response : " + data);
+                MessageManager.ParseMessagesData(data);
+            }
+        }, this);
     }
 
-    public void IsMatched(OnOperationResult<bool> onOperationResult)
+    #endregion
+
+    #region Fire Event Methods
+
+    public void FireOnGameStart()
     {
-        if (CheckIsMatched)
-        {
-            StartCoroutine(SendHttpRequest($"isMatched?id={UserId}", (err, data) =>
-            {
-                if (err)
-                {
-                    onOperationResult(false, false);
-                }
-                else if (data == "true")
-                {
-                    onOperationResult(true, true);
-                }
-                else if (data == "false")
-                {
-                    onOperationResult(true, false);
-                }
-                else
-                {
-                    onOperationResult(true, false);
-                }
-            }));
-        }
+        OnGameStart?.Invoke();
     }
 
-    public void Reset()
+    public void FireOnSpecialMessage(string message)
     {
-        ConnectionOk = false;
-        LoginOk = false;
-        CheckIsMatched = false;
-        Matched = false;
-        UserId = null;
+        OnSpecialMessage?.Invoke(message);
     }
 
-    private IEnumerator SendHttpRequest(string operation, OnDataReceived OnDataReceived)
+    public void FireOnChatMessage(string message)
     {
-        UnityWebRequest www = UnityWebRequest.Get(ServerUrl + operation);
-
-        yield return www.SendWebRequest();
-
-        if (www.isNetworkError || www.isHttpError)
-        {
-            Debug.Log(www.url); 
-            Debug.Log(www.error);
-            OnDataReceived(true, www.error);
-        }
-        else
-        {
-            Debug.Log("Received : " + www.downloadHandler.text);
-            yield return www.downloadHandler.text;
-            OnDataReceived(false, www.downloadHandler.text);
-
-        }
+        OnChatMessage?.Invoke(message);
     }
+
+    public void FireOnRivalLeave()
+    {
+        OnRivalLeave?.Invoke();
+    }
+
+    public void FireOnRivalWon()
+    {
+        OnRivalWon?.Invoke();
+    }
+
+    public void FireOnRivalWantPlayAgain()
+    {
+        OnRivalWantPlayAgain?.Invoke();
+    }
+
+    public void FireOnGameEnded()
+    {
+        OnGameEnded?.Invoke();
+    }
+
+    #endregion
 }
 
 public delegate void OnUsersMatched();
 
-public delegate void OnDataReceived(bool err, string data);
+public delegate void On<T>(T t);
 
-public delegate void OnOperationResult<T>(bool done, T data);
+public delegate void On();

@@ -11,45 +11,8 @@ public class MultiPlayerTest : MonoBehaviour
     void Start()
     {
         MultiPlayer = GetComponent<MultiPlayer>();
-        MultiPlayer.OnUsersMatched += MultiPlayer_OnUsersMatched;
 
-        //must be refactor :(
-        MultiPlayer.CheckConnection((res1, i) =>
-        {
-            if (!res1)
-            {
-                Debug.Log("Connection Error!");
-            }
-            else
-            {
-                MultiPlayer.Login((err2, id) =>
-                {
-                    if (!err2)
-                    {
-                        Debug.Log("Login Error!");
-                    }
-                    else
-                    {
-                        MultiPlayer.Match((err3, res) =>
-                        {
-                            if (!err3)
-                            {
-                                Debug.Log("Match Error!");
-                            }
-                            else
-                            {
-                                Debug.Log("Other Player Waiting!");
-                            }
-                        });
-                    }
-                });
-            }
-        });
-    }
-
-    private void MultiPlayer_OnUsersMatched()
-    {
-        Debug.Log("Users Matched. Let's play ... ");
+        MultiPlayer.StartGame();
     }
 
     // Update is called once per frame
